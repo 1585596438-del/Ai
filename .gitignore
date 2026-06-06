@@ -1,0 +1,101 @@
+# ============================================
+# Python (后端)
+# ============================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+.eggs/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# 虚拟环境
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# 环境变量与密钥（绝对不能提交）
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+secrets/
+
+# ============================================
+# 数据库 / 运行时数据
+# ============================================
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+outputs/
+logs/
+*.log
+
+# ============================================
+# PyInstaller 打包产物
+# ============================================
+build/
+dist/
+*.spec.bak
+
+# ============================================
+# Node / 前端
+# ============================================
+node_modules/
+.npm/
+.yarn/
+.pnp/
+.pnp.js
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.parcel-cache
+
+# Electron
+out/
+
+# 前端构建产物
+dist-frontend/
+
+# ============================================
+# IDE
+# ============================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================
+# 测试 / 覆盖率
+# ============================================
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.tox/
+.cache
+coverage.xml
+*.cover
+
+# ============================================
+# 杂项
+# ============================================
+*.bak
+*.tmp
+*.orig
+*.rej
+.mypy_cache/
+.ruff_cache/
