@@ -382,12 +382,13 @@ async def add_message(
             break
         context_messages.append({"role": m.role, "content": m.content})
 
-    # 启动生成
+    # 启动生成：从数据库取原始小说文本（后续消息不应使用用户输入的文本）
+    original_novel_text = conv.novel.content if conv.novel else data.text
     handler = get_handler(conv.id)
     from app.services.script_generator import generate_script_for_conversation
     asyncio.create_task(
         generate_script_for_conversation(
-            conv.id, assistant_msg.id, data.text,
+            conv.id, assistant_msg.id, original_novel_text,
             provider, handler,
             context_messages=context_messages,
             mode=getattr(conv, 'mode', 'default'),
@@ -532,13 +533,14 @@ async def edit_message(
             break
         context_messages.append({"role": m.role, "content": m.content})
 
-    # 启动生成
+    # 启动生成：从数据库取原始小说文本（修改消息不应使用用户输入的文本）
+    original_novel_text = conv.novel.content if conv.novel else data.text
     if provider and provider.is_active:
         handler = get_handler(conv.id)
         from app.services.script_generator import generate_script_for_conversation
         asyncio.create_task(
             generate_script_for_conversation(
-                conv.id, assistant_msg.id, data.text,
+                conv.id, assistant_msg.id, original_novel_text,
                 provider, handler,
                 context_messages=context_messages,
                 mode=getattr(conv, 'mode', 'default'),
