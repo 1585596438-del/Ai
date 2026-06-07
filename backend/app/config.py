@@ -18,7 +18,8 @@ def get_app_data_dir() -> Path:
 
 
 APP_DATA_DIR = get_app_data_dir()
-DATABASE_URL = f"sqlite+aiosqlite:///{APP_DATA_DIR / 'app.db'}"
+DATABASE_PATH = APP_DATA_DIR / "app.db"
+DATABASE_URL = f"sqlite+aiosqlite:///{DATABASE_PATH}"
 
 PORT = int(os.getenv("PORT", "8000"))
 LOG_LEVEL = os.getenv("LOG_LEVEL", "info")
