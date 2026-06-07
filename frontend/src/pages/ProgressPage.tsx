@@ -14,11 +14,14 @@ import { useToast } from '@/components/ui/toast'
 import { openTaskStream } from '@/api'
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react'
 
-/** 阶段中文映射 */
+/**
+ * 阶段中文映射（key 与后端 script_generator.update_task() 状态值严格一致）
+ * 历史：早期用 `extracting`，后端实际是 `extracting_characters`
+ */
 const STAGE_LABEL: Record<string, string> = {
   pending: '等待中',
   parsing: '解析章节',
-  extracting: '提取角色',
+  extracting_characters: '提取角色',
   generating_scenes: '生成场景',
   generating_dialogues: '生成台词',
   assembling: '组装剧本',
