@@ -1,24 +1,17 @@
 /**
- * 应用根组件：路由表 + Layout
- * 5 个页面：Home / Providers / Convert / Progress / Result
+ * 应用根组件：路由表
+ * - / → ChatPage（对话主页）
+ * - 设置通过顶栏齿轮按钮弹出 Modal
  */
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
-import { HomePage } from '@/pages/HomePage'
-import { ProvidersPage } from '@/pages/ProvidersPage'
-import { ConvertPage } from '@/pages/ConvertPage'
-import { ProgressPage } from '@/pages/ProgressPage'
-import { ResultPage } from '@/pages/ResultPage'
+import { ChatPage } from '@/pages/ChatPage'
 
 export default function App(): JSX.Element {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/providers" element={<ProvidersPage />} />
-        <Route path="/convert" element={<ConvertPage />} />
-        <Route path="/progress/:taskId" element={<ProgressPage />} />
-        <Route path="/result/:taskId" element={<ResultPage />} />
+        <Route path="/" element={<ChatPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

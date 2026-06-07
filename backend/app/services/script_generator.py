@@ -6,6 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import async_session
 from app.models.task import ConversionTask
+from app.models.message import Message
+from app.models.conversation import Conversation
 from app.schemas.novel import ConvertRequest
 from app.schemas.script import Script, ScriptMetadata, Character, Scene, SceneContent
 from app.services.ai_client import get_client, chat_completion
@@ -408,3 +410,119 @@ def _clean_json_response(content: str) -> str:
     if content.endswith("```"):
         content = content.rsplit("\n", 1)[0]
     return content.strip()
+
+
+# ════════════════════════════════════════════
+# 对话模式生成器（流式 SSE 推送）
+# ════════════════════════════════════════════
+
+
+async def generate_script_for_conversation(
+    conversation_id: str,
+    assistant_message_id: str,
+    novel_text: str,
+    provider,
+    handler,
+    context_messages: list[dict] | None = None,
+):
+    """
+    对话模式剧本生成主流程：
+    1. 通过 SSE handler 流式推送进度
+    2. 流式调用 LLM 逐 token 推送给前端
+    3. 完成/失败时更新数据库和 SSE
+    """
+    from app.services.ai_client import stream_chat_completion
+    from app.services.sse_handler import remove_handler
+    from sqlalchemy import select
+
+    try:
+        # 阶段 1: 解析小说
+        handler.progress("parsing", 10, "正在解析小说结构...")
+        await asyncio.sleep(0.1)
+        chapters = split_chapters(novel_text)
+
+        # 阶段 2: 提取角色
+        handler.progress("extracting_characters", 25, "正在提取角色信息...")
+        sample = extract_sample_for_characters(novel_text)
+        base_url = provider.base_url.rstrip("/") + "/v1"
+        client = get_client(base_url, provider.api_key)
+
+        characters = await _extract_characters(client, provider.default_model or "", novel_text)
+
+        # 构建角色摘要
+        char_desc = "\n".join([
+            f"- {c.name}: {c.description} | 性格: {', '.join(c.traits)}"
+            for c in characters
+        ])
+
+        # 阶段 3: 流式生成剧本
+        handler.progress("generating_dialogues", 40, "AI 正在生成剧本...")
+
+        # 构建系统提示词
+        system_prompt = f"""你是一个专业的剧本改写 AI。请根据以下小说内容和角色信息，生成结构化的 YAML 格式剧本。
+
+角色信息：
+{char_desc}
+
+要求：
+1. 按章节划分场景
+2. 每个场景包含：场景名、地点、时间、角色列表、对话
+3. 对话格式为角色名: 台词
+4. 用 YAML 格式输出，结构清晰，缩进正确"""
+
+        # 构建消息列表（含上下文）
+        messages = [{"role": "system", "content": system_prompt}]
+        if context_messages:
+            # 拼入历史上下文（限制最近 20 条）
+            messages.extend(context_messages[-20:])
+        else:
+            messages.append({"role": "user", "content": novel_text})
+
+        # 流式生成
+        accumulated = ""
+        async for delta in stream_chat_completion(
+            base_url, provider.api_key, provider.default_model or "",
+            messages,
+        ):
+            accumulated += delta
+            handler.message_delta(assistant_message_id, delta)
+
+        # 保存到数据库
+        async with async_session() as session:
+            result = await session.execute(
+                select(Message).where(Message.id == assistant_message_id)
+            )
+            msg = result.scalar_one_or_none()
+            if msg:
+                msg.content = accumulated
+
+            conv_result = await session.execute(
+                select(Conversation).where(Conversation.id == conversation_id)
+            )
+            conv = conv_result.scalar_one_or_none()
+            if conv:
+                conv.status = "completed"
+                conv.progress = 100
+                conv.detail = "生成完成"
+
+            await session.commit()
+
+        handler.done(conversation_id, assistant_message_id, "completed")
+
+    except Exception as e:
+        error_msg = str(e)
+        handler.error("GENERATION_FAILED", error_msg)
+
+        async with async_session() as session:
+            conv_result = await session.execute(
+                select(Conversation).where(Conversation.id == conversation_id)
+            )
+            conv = conv_result.scalar_one_or_none()
+            if conv:
+                conv.status = "failed"
+                conv.error_code = "GENERATION_FAILED"
+                conv.error_message = error_msg
+                await session.commit()
+
+    finally:
+        remove_handler(conversation_id)
