@@ -21,7 +21,7 @@
 | 角色 | 成员 | 负责模块 |
 | --- | --- | --- |
 | **后端** | Zhiwen P（1585596438@qq.com） | FastAPI 后端、AI 调用、任务编排、PyInstaller 打包 |
-| **前端** | _待填_ | Electron 桌面壳、UI、文件交互 |
+| **前端** | user-wangjun（1740925470@qq.com） | Electron 桌面壳、UI、文件交互 |
 
 ---
 
