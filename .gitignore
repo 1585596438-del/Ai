@@ -65,6 +65,10 @@ out/
 
 # 前端构建产物
 dist-frontend/
+dist/
+*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
 
 # ============================================
 # IDE
