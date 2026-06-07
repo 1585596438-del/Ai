@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { PanelLeftClose, PanelLeft, MessageSquare, Plus } from 'lucide-react'
 import { ConversationList } from '@/components/chat/ConversationList'
 import { ChatArea } from '@/components/chat/ChatArea'
+import { ChatInput } from '@/components/chat/ChatInput'
 import * as api from '@/api'
 import { useToast } from '@/components/ui/toast'
 import { useAppStore } from '@/stores/appStore'
@@ -25,7 +26,9 @@ export function ChatPage(): JSX.Element {
   const [isStreaming, setIsStreaming] = useState(false)
   const [streamingMsgId, setStreamingMsgId] = useState<string | null>(null)
   const [streamingContent, setStreamingContent] = useState('')
+  const [streamDurationMs, setStreamDurationMs] = useState<number | null>(null)
   const closeStreamRef = useRef<(() => void) | null>(null)
+  const streamStartRef = useRef<number>(0)
 
   // 初始化
   useEffect(() => {
@@ -49,6 +52,8 @@ export function ChatPage(): JSX.Element {
     setIsStreaming(true)
     setStreamingMsgId(assistantId)
     setStreamingContent('')
+    setStreamDurationMs(null)
+    streamStartRef.current = Date.now()
 
     const close = api.openConversationStream(
       convId,
@@ -58,13 +63,16 @@ export function ChatPage(): JSX.Element {
           setStreamingContent((prev) => prev + msg.delta)
         }
       },
-      () => {
+      (done) => {
+        const duration = done.duration_ms || (Date.now() - streamStartRef.current)
+        setStreamDurationMs(duration)
         setIsStreaming(false)
         setStreamingMsgId(null)
         api.getConversation(convId).then(setConversation).catch(() => {})
         setRefreshTrigger((p) => p + 1)
       },
       (err) => {
+        setStreamDurationMs(Date.now() - streamStartRef.current)
         setIsStreaming(false)
         setStreamingMsgId(null)
         toast({ title: '生成失败', description: err.error_message, variant: 'destructive' })
@@ -75,7 +83,7 @@ export function ChatPage(): JSX.Element {
   }, [toast])
 
   // 发送消息
-  const handleSend = useCallback(async (text: string, imagePaths?: string[]) => {
+  const handleSend = useCallback(async (text: string, imagePaths?: string[], mode: 'default' | 'novel_to_script' = 'default') => {
     if (!defaultProviderId || !defaultModelName) {
       toast({ title: '未配置模型', description: '请先点击右上角齿轮设置 Provider 和模型', variant: 'destructive' })
       return
@@ -90,6 +98,7 @@ export function ChatPage(): JSX.Element {
           provider_id: defaultProviderId,
           model_name: defaultModelName,
           image_paths: imagePaths,
+          mode,
         })
         setSelectedId(res.conversation_id)
         setRefreshTrigger((p) => p + 1)
@@ -101,6 +110,7 @@ export function ChatPage(): JSX.Element {
           provider_id: defaultProviderId, model_name: defaultModelName,
           status: 'pending', progress: 0, detail: '',
           error_code: null, error_message: null,
+          mode,
           message_count: 1, last_message_preview: text.slice(0, 50),
           created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
           messages: [],
@@ -142,11 +152,31 @@ export function ChatPage(): JSX.Element {
     }
   }, [conversation, toast, handleSelect])
 
-  // 修改
+  // 修改用户消息并重新生成
   const handleEdit = useCallback(async (msgId: string, text: string) => {
     if (!conversation) return
     try {
       const { assistant_message_id } = await api.editMessage(conversation.id, msgId, { text })
+
+      // 乐观更新：找到被编辑的用户消息，删除它及之后的消息，替换为新内容 + 空 assistant 占位
+      setConversation((prev) => {
+        if (!prev) return prev
+        const idx = prev.messages.findIndex((m) => m.id === msgId)
+        if (idx === -1) return prev
+        const kept = prev.messages.slice(0, idx)
+        const userMsg = {
+          ...prev.messages[idx],
+          content: text,
+        }
+        const assistantPlaceholder = {
+          id: assistant_message_id, conversation_id: prev.id,
+          role: 'assistant' as const, content: '',
+          has_image: false, image_paths: null,
+          created_at: new Date().toISOString(),
+        }
+        return { ...prev, messages: [...kept, userMsg, assistantPlaceholder] }
+      })
+
       startStream(conversation.id, assistant_message_id)
     } catch {
       toast({ title: '修改失败', variant: 'destructive' })
@@ -160,6 +190,7 @@ export function ChatPage(): JSX.Element {
     setIsStreaming(false)
     setStreamingMsgId(null)
     setStreamingContent('')
+    setStreamDurationMs(null)
     closeStreamRef.current?.()
   }
 
@@ -170,9 +201,9 @@ export function ChatPage(): JSX.Element {
 
   return (
     <div className="flex h-full">
-      {/* 左侧可折叠面板 */}
+      {/* 左侧可折叠面板 — 整条到底 */}
       <div
-        className={`shrink-0 border-r border-slate-200 bg-white transition-all duration-200 overflow-hidden ${
+        className={`shrink-0 h-full border-r border-slate-200 bg-white transition-all duration-200 overflow-hidden ${
           sidebarOpen ? 'w-64' : 'w-0'
         }`}
       >
@@ -208,16 +239,20 @@ export function ChatPage(): JSX.Element {
         </div>
 
         {/* 对话区 */}
-        <div className="flex-1 flex min-h-0">
+        <div className="flex-1 flex flex-col min-h-0">
           {!conversation && !isStreaming ? (
-            /* 空白首页 */
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-4">
-              <MessageSquare className="h-12 w-12 text-slate-300" />
-              <div className="text-center">
-                <p className="text-lg font-medium text-slate-600">开始一段新对话</p>
-                <p className="text-sm mt-1">直接输入小说正文或上传文件，AI 将生成剧本</p>
+            <>
+              {/* 空白首页 */}
+              <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-4">
+                <MessageSquare className="h-12 w-12 text-slate-300" />
+                <div className="text-center">
+                  <p className="text-lg font-medium text-slate-600">开始一段新对话</p>
+                  <p className="text-sm mt-1">直接输入小说正文或上传文件，AI 将生成剧本</p>
+                </div>
               </div>
-            </div>
+              {/* 输入框 */}
+              <ChatInput onSend={handleSend} isStreaming={false} />
+            </>
           ) : (
             <ChatArea
               conversation={conversation}
@@ -227,6 +262,7 @@ export function ChatPage(): JSX.Element {
               onRetract={handleRetract}
               onEdit={handleEdit}
               isStreaming={isStreaming}
+              streamDurationMs={streamDurationMs}
             />
           )}
         </div>

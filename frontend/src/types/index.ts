@@ -117,6 +117,7 @@ export interface Conversation {
   detail: string
   error_code: string | null
   error_message: string | null
+  mode: 'default' | 'novel_to_script'
   message_count: number
   last_message_preview: string
   created_at: string
@@ -144,6 +145,7 @@ export interface CreateConversationRequest {
   provider_id: string
   model_name: string
   image_paths?: string[]
+  mode?: 'default' | 'novel_to_script'
 }
 
 /** 追加消息请求 */

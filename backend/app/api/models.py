@@ -21,8 +21,7 @@ class CheckMultimodalRequest(BaseModel):
 
 @router.post("/fetch")
 async def fetch_models_endpoint(data: FetchModelsRequest):
-    base_url = data.base_url.rstrip("/") + "/v1"
-    models, error = await fetch_models(base_url, data.api_key)
+    models, error = await fetch_models(data.base_url, data.api_key)
     if error:
         raise HTTPException(status_code=400, detail=error)
     return {"models": models}
@@ -39,7 +38,7 @@ async def check_multimodal_endpoint(data: CheckMultimodalRequest):
         if not provider:
             raise HTTPException(status_code=400, detail="Provider not found")
 
-        base_url = provider.base_url.rstrip("/") + "/v1"
+        base_url = provider.base_url
         is_multimodal = await check_multimodal_cached(
             base_url, provider.api_key, data.model_name
         )

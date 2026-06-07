@@ -19,6 +19,7 @@ class CreateConversationRequest(BaseModel):
     provider_id: str = Field(..., min_length=1)
     model_name: str = Field(..., min_length=1)
     image_paths: Optional[List[str]] = None
+    mode: str = Field(default="default")  # "default" 或 "novel_to_script"
 
 
 class AddMessageRequest(BaseModel):

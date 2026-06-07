@@ -13,15 +13,16 @@ interface Props {
   conversation: ConversationDetail | null
   streamingMessageId: string | null
   streamingContent: string
-  onSend: (text: string, imagePaths?: string[]) => void
+  onSend: (text: string, imagePaths?: string[], mode?: 'default' | 'novel_to_script') => void
   onRetract: (msgId: string) => void
   onEdit: (msgId: string, text: string) => void
   isStreaming: boolean
+  streamDurationMs?: number | null
 }
 
 export function ChatArea({
   conversation, streamingMessageId, streamingContent,
-  onSend, onRetract, onEdit, isStreaming,
+  onSend, onRetract, onEdit, isStreaming, streamDurationMs,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -90,6 +91,12 @@ export function ChatArea({
             }}
             isStreaming
           />
+        )}
+        {/* 流式完成后显示耗时 */}
+        {!isStreaming && streamDurationMs !== null && streamDurationMs !== undefined && (
+          <div className="text-center text-[11px] text-slate-400 py-1">
+            耗时 {(streamDurationMs / 1000).toFixed(1)}s
+          </div>
         )}
         <div ref={bottomRef} />
       </div>

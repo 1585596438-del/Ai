@@ -10,4 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   /** 获取应用数据目录（用于持久化配置 / 日志） */
   getAppDataPath: () => ipcRenderer.invoke('get-app-data-path'),
+
+  /** 用系统默认浏览器打开外部链接 */
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
 })

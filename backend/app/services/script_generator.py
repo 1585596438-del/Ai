@@ -68,8 +68,7 @@ async def generate_script(task_id: str, request: ConvertRequest, provider):
 
         # Step 2: 提取角色
         await update_task(task_id, status="extracting_characters", progress=15, detail="正在提取角色信息...")
-        base_url = provider.base_url.rstrip("/") + "/v1"
-        client = get_client(base_url, provider.api_key)
+        client = get_client(provider.base_url, provider.api_key)
         characters = await _extract_characters(
             client, request.model, request.novel.text,
             custom_prompt=char_custom,
@@ -424,30 +423,37 @@ async def generate_script_for_conversation(
     provider,
     handler,
     context_messages: list[dict] | None = None,
+    mode: str = "default",
+    model_name: str = "",
 ):
     """
     对话模式剧本生成主流程：
     1. 通过 SSE handler 流式推送进度
     2. 流式调用 LLM 逐 token 推送给前端
     3. 完成/失败时更新数据库和 SSE
+    4. mode="novel_to_script" 时使用小说转剧本专用 system prompt
+    5. model_name 为用户选择的模型，为空时回退到 provider.default_model
     """
     from app.services.ai_client import stream_chat_completion
+
+    # 优先使用传入的模型名，回退到 Provider 默认模型
+    actual_model = model_name or provider.default_model
     from app.services.sse_handler import remove_handler
     from sqlalchemy import select
 
     try:
+        # 等待前端 EventSource 连接就绪（避免竞态条件：任务完成时前端还未连接 SSE）
+        await asyncio.sleep(0.5)
+
         # 阶段 1: 解析小说
         handler.progress("parsing", 10, "正在解析小说结构...")
-        await asyncio.sleep(0.1)
         chapters = split_chapters(novel_text)
 
         # 阶段 2: 提取角色
         handler.progress("extracting_characters", 25, "正在提取角色信息...")
-        sample = extract_sample_for_characters(novel_text)
-        base_url = provider.base_url.rstrip("/") + "/v1"
-        client = get_client(base_url, provider.api_key)
+        client = get_client(provider.base_url, provider.api_key)
 
-        characters = await _extract_characters(client, provider.default_model or "", novel_text)
+        characters = await _extract_characters(client, actual_model, novel_text)
 
         # 构建角色摘要
         char_desc = "\n".join([
@@ -458,8 +464,21 @@ async def generate_script_for_conversation(
         # 阶段 3: 流式生成剧本
         handler.progress("generating_dialogues", 40, "AI 正在生成剧本...")
 
-        # 构建系统提示词
-        system_prompt = f"""你是一个专业的剧本改写 AI。请根据以下小说内容和角色信息，生成结构化的 YAML 格式剧本。
+        # 根据 mode 选择 system prompt
+        if mode == "novel_to_script":
+            from app.services.novel_to_script_prompt import NOVEL_TO_SCRIPT_SYSTEM_PROMPT
+            system_prompt = f"""{NOVEL_TO_SCRIPT_SYSTEM_PROMPT}
+
+## 小说信息（供分析参考）
+小说总字数：{len(novel_text)} 字
+章节数量：{len(chapters)} 章
+
+## 角色信息（AI 已提取）
+{char_desc}
+
+请根据以上信息，开始对小说进行解析和分析。"""
+        else:
+            system_prompt = f"""你是一个专业的剧本改写 AI。请根据以下小说内容和角色信息，生成结构化的 YAML 格式剧本。
 
 角色信息：
 {char_desc}
@@ -478,14 +497,27 @@ async def generate_script_for_conversation(
         else:
             messages.append({"role": "user", "content": novel_text})
 
-        # 流式生成
+        # 流式生成（max_tokens 设为 16K，避免长文本输出被截断）
         accumulated = ""
-        async for delta in stream_chat_completion(
-            base_url, provider.api_key, provider.default_model or "",
+        finish_reason = None
+        async for delta, reason in stream_chat_completion(
+            provider.base_url, provider.api_key, actual_model,
             messages,
+            max_tokens=16384,
         ):
             accumulated += delta
+            finish_reason = reason
             handler.message_delta(assistant_message_id, delta)
+
+        # 检查 AI 是否返回了空内容
+        if not accumulated.strip():
+            raise RuntimeError(
+                f"模型 {actual_model} 未返回任何内容，请检查模型是否可用或切换其他模型"
+            )
+
+        # 检查是否因 max_tokens 限制被截断
+        if finish_reason == "length":
+            accumulated += "\n\n[注意：输出因 token 限制被截断，请尝试缩短输入文本或切换支持更长输出的模型]"
 
         # 保存到数据库
         async with async_session() as session:

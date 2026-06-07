@@ -4,7 +4,7 @@
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Provider, ProviderCreate } from '@/types'
+import type { Provider, ProviderCreate, ProviderUpdate, TaskStatus, TaskStatusValue } from '@/types'
 import * as api from '@/api'
 
 export interface NovelInputState {
@@ -19,6 +19,7 @@ interface AppState {
   providersLoading: boolean
   fetchProviders: () => Promise<void>
   addProvider: (data: ProviderCreate) => Promise<Provider>
+  updateProvider: (id: string, data: ProviderUpdate) => Promise<void>
   removeProvider: (id: string) => Promise<void>
 
   /* 默认配置（持久化） */
@@ -30,6 +31,22 @@ interface AppState {
   novelInput: NovelInputState
   setNovelInput: (input: Partial<NovelInputState>) => void
   resetNovelInput: () => void
+
+  /* 当前转换任务 */
+  currentTaskId: string
+  currentTaskStatus: TaskStatusValue
+  setCurrentTask: (taskId: string, status: TaskStatusValue) => void
+
+  /* 任务进度（SSE 推送） */
+  taskStatus: TaskStatus | null
+  updateTaskStatus: (status: Partial<TaskStatus>) => void
+
+  /* YAML 结果 */
+  currentYaml: string
+  setCurrentYaml: (yaml: string) => void
+
+  /* 设置默认 Provider（便捷方法） */
+  setDefaultProvider: (providerId: string) => Promise<void>
 }
 
 const emptyNovel: NovelInputState = { title: '', author: '', text: '' }
@@ -55,6 +72,12 @@ export const useAppStore = create<AppState>()(
         set({ providers: [...get().providers, p] })
         return p
       },
+      updateProvider: async (id, data) => {
+        const updated = await api.updateProvider(id, data)
+        set({
+          providers: get().providers.map(p => p.id === id ? updated : p)
+        })
+      },
       removeProvider: async (id) => {
         await api.deleteProvider(id)
         const next = get().providers.filter((p) => p.id !== id)
@@ -74,6 +97,29 @@ export const useAppStore = create<AppState>()(
       novelInput: emptyNovel,
       setNovelInput: (input) => set({ novelInput: { ...get().novelInput, ...input } }),
       resetNovelInput: () => set({ novelInput: emptyNovel }),
+
+      /* 当前转换任务 */
+      currentTaskId: '',
+      currentTaskStatus: 'pending' as TaskStatusValue,
+      setCurrentTask: (taskId, status) => set({ currentTaskId: taskId, currentTaskStatus: status }),
+
+      /* 任务进度（SSE 推送） */
+      taskStatus: null,
+      updateTaskStatus: (s) => set({ taskStatus: { ...get().taskStatus, ...s } as TaskStatus }),
+
+      /* YAML 结果 */
+      currentYaml: '',
+      setCurrentYaml: (yaml) => set({ currentYaml: yaml }),
+
+      /* 设置默认 Provider */
+      setDefaultProvider: async (providerId) => {
+        await api.setDefaultProvider(providerId)
+        const list = get().providers.map((p) => ({
+          ...p,
+          is_default: p.id === providerId,
+        }))
+        set({ providers: list, defaultProviderId: providerId })
+      },
     }),
     {
       name: 'novel2script-app',

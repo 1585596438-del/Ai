@@ -7,6 +7,7 @@ class ProviderBase(BaseModel):
     base_url: str = Field(..., pattern=r"^https?://")
     models: list[str] = Field(default_factory=list)
     is_default: bool = False
+    is_active: bool = True
 
 
 class ProviderCreate(ProviderBase):
@@ -19,6 +20,7 @@ class ProviderUpdate(BaseModel):
     api_key: str | None = None
     models: list[str] | None = None
     is_default: bool | None = None
+    is_active: bool | None = None
 
 
 class ProviderOut(ProviderBase):

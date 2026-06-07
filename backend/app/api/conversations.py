@@ -85,6 +85,7 @@ async def list_conversations(
             "detail": conv.detail,
             "error_code": conv.error_code,
             "error_message": conv.error_message,
+            "mode": getattr(conv, "mode", "default"),
             "message_count": msg_count,
             "last_message_preview": last_msg.content[:100] if last_msg else "",
             "created_at": conv.created_at.isoformat() if conv.created_at else None,
@@ -136,6 +137,7 @@ async def get_conversation(conversation_id: str, db: AsyncSession = Depends(get_
         "detail": conv.detail,
         "error_code": conv.error_code,
         "error_message": conv.error_message,
+        "mode": getattr(conv, "mode", "default"),
         "messages": messages,
         "created_at": conv.created_at.isoformat() if conv.created_at else None,
         "updated_at": conv.updated_at.isoformat() if conv.updated_at else None,
@@ -182,6 +184,7 @@ async def create_conversation(
         provider_id=data.provider_id,
         model_name=data.model_name,
         status="pending",
+        mode=data.mode,
     )
     db.add(conv)
     await db.flush()
@@ -211,6 +214,8 @@ async def create_conversation(
         generate_script_for_conversation(
             conv.id, assistant_msg.id, data.novel.text,
             provider, handler,
+            mode=data.mode,
+            model_name=data.model_name,
         )
     )
 
@@ -377,14 +382,17 @@ async def add_message(
             break
         context_messages.append({"role": m.role, "content": m.content})
 
-    # 启动生成
+    # 启动生成：从数据库取原始小说文本（后续消息不应使用用户输入的文本）
+    original_novel_text = conv.novel.content if conv.novel else data.text
     handler = get_handler(conv.id)
     from app.services.script_generator import generate_script_for_conversation
     asyncio.create_task(
         generate_script_for_conversation(
-            conv.id, assistant_msg.id, data.text,
+            conv.id, assistant_msg.id, original_novel_text,
             provider, handler,
             context_messages=context_messages,
+            mode=getattr(conv, 'mode', 'default'),
+            model_name=getattr(conv, 'model_name', ''),
         )
     )
 
@@ -525,15 +533,18 @@ async def edit_message(
             break
         context_messages.append({"role": m.role, "content": m.content})
 
-    # 启动生成
+    # 启动生成：从数据库取原始小说文本（修改消息不应使用用户输入的文本）
+    original_novel_text = conv.novel.content if conv.novel else data.text
     if provider and provider.is_active:
         handler = get_handler(conv.id)
         from app.services.script_generator import generate_script_for_conversation
         asyncio.create_task(
             generate_script_for_conversation(
-                conv.id, assistant_msg.id, data.text,
+                conv.id, assistant_msg.id, original_novel_text,
                 provider, handler,
                 context_messages=context_messages,
+                mode=getattr(conv, 'mode', 'default'),
+                model_name=getattr(conv, 'model_name', ''),
             )
         )
 
@@ -549,14 +560,66 @@ async def edit_message(
 async def stream_conversation(conversation_id: str):
     """SSE 流式推送对话生成进度和文本"""
     handler = get_existing_handler(conversation_id)
+    if handler:
+        return StreamingResponse(handler, media_type="text/event-stream")
 
-    async def empty_gen():
-        yield 'event: error\ndata: {"error_code":"NOT_STREAMING","error_message":"No active stream"}\n\n'
+    # handler 不存在时，检查数据库回放已完成/失败的结果（竞态条件兜底）
+    async def replay_events():
+        async with async_session() as session:
+            result = await session.execute(
+                select(Conversation).where(Conversation.id == conversation_id)
+            )
+            conv = result.scalar_one_or_none()
 
-    if not handler:
-        return StreamingResponse(empty_gen(), media_type="text/event-stream")
+            if conv and conv.status == "failed":
+                payload = json.dumps({
+                    "error_code": conv.error_code or "GENERATION_FAILED",
+                    "error_message": conv.error_message or "生成失败"
+                }, ensure_ascii=False)
+                yield f"event: error\ndata: {payload}\n\n"
+            elif conv and conv.status == "completed":
+                # 获取最后一条 assistant 消息的内容
+                msgs_result = await session.execute(
+                    select(Message).where(
+                        Message.conversation_id == conversation_id,
+                        Message.role == "assistant"
+                    ).order_by(Message.created_at.desc()).limit(1)
+                )
+                last_msg = msgs_result.scalar_one_or_none()
+                if last_msg and last_msg.content:
+                    payload = json.dumps({
+                        "message_id": last_msg.id,
+                        "delta": last_msg.content
+                    }, ensure_ascii=False)
+                    yield f"event: message\ndata: {payload}\n\n"
+                done_payload = json.dumps({
+                    "conversation_id": conversation_id,
+                    "message_id": last_msg.id if last_msg else "",
+                    "status": "completed",
+                    "duration_ms": 0
+                }, ensure_ascii=False)
+                yield f"event: done\ndata: {done_payload}\n\n"
+            elif conv and conv.status == "pending":
+                # 任务可能即将启动，等待一下再让前端重试
+                await asyncio.sleep(1.0)
+                handler_retry = get_existing_handler(conversation_id)
+                if handler_retry:
+                    async for event in handler_retry:
+                        yield event
+                    return
+                payload = json.dumps({
+                    "error_code": "NOT_STREAMING",
+                    "error_message": "模型响应超时，请检查 API 连接后重试"
+                }, ensure_ascii=False)
+                yield f"event: error\ndata: {payload}\n\n"
+            else:
+                payload = json.dumps({
+                    "error_code": "NOT_STREAMING",
+                    "error_message": "No active stream"
+                }, ensure_ascii=False)
+                yield f"event: error\ndata: {payload}\n\n"
 
-    return StreamingResponse(handler, media_type="text/event-stream")
+    return StreamingResponse(replay_events(), media_type="text/event-stream")
 
 
 # ──────────────────── 导出 ────────────────────

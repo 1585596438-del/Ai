@@ -34,6 +34,10 @@ export const deleteProvider = (id: string) => apiDelete<{ ok: boolean }>(`/provi
 /** 测试 Provider 连通性 */
 export const testProvider = (id: string) => apiPost<{ ok: boolean; message: string }>(`/providers/${id}/test`)
 
+/** 设为默认 Provider */
+export const setDefaultProvider = (id: string) =>
+  apiPut<Provider, { is_default: boolean }>(`/providers/${id}`, { is_default: true })
+
 /* ───────────── Models ───────────── */
 
 /** 根据 base_url + api_key 拉取可用模型列表（无需先保存 Provider） */

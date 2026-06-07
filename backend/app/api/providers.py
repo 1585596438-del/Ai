@@ -25,6 +25,7 @@ async def list_providers(db: AsyncSession = Depends(get_db)):
             base_url=p.base_url,
             models=p.models.split(",") if p.models else [],
             is_default=p.is_default,
+            is_active=p.is_active,
             created_at=p.created_at,
         )
         for p in providers
@@ -45,6 +46,7 @@ async def create_provider(data: ProviderCreate, db: AsyncSession = Depends(get_d
         api_key=data.api_key,
         models=",".join(data.models),
         is_default=data.is_default,
+        is_active=data.is_active,
     )
     db.add(provider)
     await db.commit()
@@ -55,6 +57,7 @@ async def create_provider(data: ProviderCreate, db: AsyncSession = Depends(get_d
         base_url=provider.base_url,
         models=provider.models.split(",") if provider.models else [],
         is_default=provider.is_default,
+        is_active=provider.is_active,
         created_at=provider.created_at,
     )
 
@@ -92,6 +95,7 @@ async def update_provider(
         base_url=provider.base_url,
         models=provider.models.split(",") if provider.models else [],
         is_default=provider.is_default,
+        is_active=provider.is_active,
         created_at=provider.created_at,
     )
 
