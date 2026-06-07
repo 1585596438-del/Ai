@@ -15,8 +15,8 @@
 | 产品名称 | **星幕 / StarScript** |
 | 团队名称 | **望星** |
 | Slogan | 让故事，走向银幕。 |
-| Logo | `logo_星幕.png` |
-| 应用图标 | `应用图标_星幕.png`（打包到 Electron 桌面应用） |
+| Logo | [`frontend/public/brand/logo.png`](./frontend/public/brand/logo.png) |
+| 应用图标 | [`frontend/public/brand/app-icon.png`](./frontend/public/brand/app-icon.png)（打包到 Electron 桌面应用） |
 | 提交日期 | 2026-06-06 |
 | 公开性 | ✅ Public |
 
