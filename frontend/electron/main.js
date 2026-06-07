@@ -124,6 +124,14 @@ ipcMain.handle('read-file', async (_event, filePath) => {
 /** 获取应用数据目录（用于存配置 / 日志） */
 ipcMain.handle('get-app-data-path', () => app.getPath('userData'))
 
+/** 用系统默认浏览器打开外部链接（仅允许 http/https 协议，防止危险协议） */
+ipcMain.handle('open-external', async (_event, url) => {
+  if (typeof url !== 'string' || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+    throw new Error('Invalid url protocol')
+  }
+  await shell.openExternal(url)
+})
+
 /* ───────────── 生命周期 ───────────── */
 
 app.whenReady().then(async () => {
