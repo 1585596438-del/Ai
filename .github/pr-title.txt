@@ -1,0 +1,1 @@
+feat(frontend): scaffold Vite + React + TypeScript app with 5 pages, Electron shell and brand assets

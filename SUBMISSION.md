@@ -1,6 +1,8 @@
-# Novel2Script 项目提交说明
+# Novel2Script（星幕 · StarScript）项目提交说明
 
-> 本文档面向**评审老师**与**协作者**，说明本次提交的内容、规范遵循情况与协作流程。
+> **让故事，走向银幕。**
+
+本文档面向**评审老师**与**协作者**，说明本次提交的内容、规范遵循情况与协作流程。
 
 ---
 
@@ -9,8 +11,12 @@
 | 项目 | 内容 |
 | --- | --- |
 | 仓库地址 | <https://github.com/1585596438-del/Ai> |
-| 项目名称 | **Novel2Script**（AI 辅助小说转剧本） |
-| 团队名称 | 望星组合 |
+| 项目名称 | **Novel2Script** |
+| 产品名称 | **星幕 / StarScript** |
+| 团队名称 | **望星** |
+| Slogan | 让故事，走向银幕。 |
+| Logo | [`frontend/public/brand/logo.png`](./frontend/public/brand/logo.png) |
+| 应用图标 | [`frontend/public/brand/app-icon.png`](./frontend/public/brand/app-icon.png)（打包到 Electron 桌面应用） |
 | 提交日期 | 2026-06-06 |
 | 公开性 | ✅ Public |
 
