@@ -1,9 +1,24 @@
-# Novel2Script
+# Novel2Script（星幕 · StarScript）
 
-> AI 辅助小说转剧本工具 —— 让小说一键变剧本
+> **让故事，走向银幕。** — AI 辅助小说转剧本桌面工具
 
-Novel2Script 是一个桌面端 AI 工具，能够将中文网络小说自动转换为结构化的剧本（YAML 格式）。
+Novel2Script（产品名：**星幕 / StarScript**）是一个桌面端 AI 工具，能够将中文网络小说自动转换为结构化的剧本（YAML 格式）。
 后端基于 **FastAPI** + **大语言模型**，前端基于 **Electron**，最终以**桌面应用**形态分发。
+
+---
+
+## 项目品牌
+
+| 项目 | 内容 |
+| --- | --- |
+| 团队名称 | 望星 |
+| 应用名称 | 星幕 |
+| 英文名称 | StarScript |
+| Slogan | 让故事，走向银幕。 |
+| Logo | `logo_星幕.png`（团队主标识，用于 README、官网、PPT 封面等） |
+| 应用图标 | `应用图标_星幕.png`（打包后的桌面应用图标，Electron `build/` 使用） |
+
+> 后续若在 `frontend/public/` 引入品牌素材，将在 `frontend/docs/BRAND.md` 维护版本记录。
 
 ---
 
