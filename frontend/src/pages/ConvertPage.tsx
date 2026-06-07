@@ -72,9 +72,11 @@ export function ConvertPage(): JSX.Element {
       const r = await submitConvert({
         provider_id: providerId,
         model,
-        title: novelInput.title,
-        author: novelInput.author,
-        text: novelInput.text,
+        novel: {
+          title: novelInput.title,
+          author: novelInput.author,
+          text: novelInput.text,
+        },
       })
       setCurrentTask(r.task_id, r.status)
       navigate(`/progress/${r.task_id}`)

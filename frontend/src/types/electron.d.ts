@@ -7,6 +7,7 @@ export {}
 export interface ElectronAPI {
   readFile: (filePath: string) => Promise<string>
   getAppDataPath: () => Promise<string>
+  openExternal: (url: string) => Promise<void>
 }
 
 declare global {

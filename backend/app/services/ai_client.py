@@ -18,17 +18,25 @@ def _create_httpx_client(timeout: float = 10.0):
     return httpx.AsyncClient(timeout=timeout)
 
 
+def _build_api_url(base_url: str) -> str:
+    """将用户配置的 base_url 统一转为 OpenAI 兼容的 /v1 路径。
+    所有 LLM 调用均通过此函数构造 URL，确保 OpenAI 兼容协议一致性。
+    如果 base_url 已经以 /v1 结尾则不再重复拼接。"""
+    url = base_url.rstrip("/")
+    if url.endswith("/v1"):
+        return url
+    return url + "/v1"
+
+
 def get_client(base_url: str, api_key: str) -> AsyncOpenAI:
-    """获取 OpenAI 客户端实例，自动识别系统代理"""
+    """获取 OpenAI 客户端实例（base_url 不用带 /v1，内部自动拼接）"""
     proxy = _get_proxy()
-    http_client = None
-    if proxy:
-        http_client = httpx.AsyncClient(proxy=proxy)
-    return AsyncOpenAI(base_url=base_url, api_key=api_key, http_client=http_client)
+    http_client = httpx.AsyncClient(proxy=proxy) if proxy else httpx.AsyncClient()
+    return AsyncOpenAI(base_url=_build_api_url(base_url), api_key=api_key, http_client=http_client)
 
 
 async def fetch_models(base_url: str, api_key: str):
-    """获取远端模型列表，返回 (models_list, error_message)"""
+    """获取远端模型列表（base_url 不用带 /v1），返回 (models_list, error_message)"""
     try:
         client = get_client(base_url, api_key)
         models = await client.models.list()
@@ -38,7 +46,7 @@ async def fetch_models(base_url: str, api_key: str):
 
 
 async def test_connection(base_url: str, api_key: str):
-    """测试连接是否可用，返回 (ok, message)"""
+    """测试连接是否可用（base_url 不用带 /v1），返回 (ok, message)"""
     try:
         client = get_client(base_url, api_key)
         await client.models.list()
@@ -73,7 +81,7 @@ async def chat_completion_with_system(
     temperature: float = 0.7,
     max_tokens: int = 4000,
 ):
-    """封装带 system prompt 的聊天补全调用（兼容旧版 httpx 调用方式）"""
+    """封装带 system prompt 的聊天补全调用（base_url 不用带 /v1）"""
     client = get_client(base_url, api_key)
     messages = [
         {"role": "system", "content": system_prompt},
@@ -94,10 +102,12 @@ async def stream_chat_completion(
     max_tokens: int = 4096,
 ):
     """
-    流式聊天补全：异步生成器，逐 token yield delta 内容。
+    流式聊天补全：异步生成器，逐 token yield (delta_content, finish_reason) 元组。
+    finish_reason 在流结束时返回 "stop" 或 "length"，流进行中为 None。
+    base_url 不用带 /v1，内部自动拼接完整路径。
     使用 httpx 流式响应遍历 SSE 事件。
     """
-    url = base_url.rstrip("/") + "/chat/completions"
+    url = _build_api_url(base_url) + "/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -111,6 +121,7 @@ async def stream_chat_completion(
     }
 
     proxy = _get_proxy()
+    last_finish_reason = None
     async with httpx.AsyncClient(timeout=300.0, proxy=proxy) as client:
         async with client.stream("POST", url, headers=headers, json=payload) as resp:
             if resp.status_code != 200:
@@ -121,13 +132,25 @@ async def stream_chat_completion(
                 if line.startswith("data: "):
                     data_str = line[6:]
                     if data_str == "[DONE]":
+                        yield ("", last_finish_reason or "stop")
                         return
                     try:
                         data = json.loads(data_str)
-                        delta = data.get("choices", [{}])[0].get("delta", {})
+                        # 检测 API 返回的错误（如模型不存在、认证失败等）
+                        if "error" in data:
+                            error_msg = data["error"].get("message", str(data["error"]))
+                            raise RuntimeError(f"API 返回错误: {error_msg}")
+                        choices = data.get("choices", [])
+                        if not choices:
+                            continue
+                        choice = choices[0]
+                        finish_reason = choice.get("finish_reason")
+                        if finish_reason:
+                            last_finish_reason = finish_reason
+                        delta = choice.get("delta", {})
                         content = delta.get("content", "")
                         if content:
-                            yield content
+                            yield (content, None)
                     except json.JSONDecodeError:
                         continue
 
@@ -151,9 +174,10 @@ def _make_empty_png_base64() -> str:
 async def check_multimodal(base_url: str, api_key: str, model_name: str) -> bool:
     """
     探测模型是否支持多模态（图片输入）。
+    base_url 不用带 /v1，内部自动拼接完整路径。
     发送一个最小图片 + 文本请求，成功返回 True，失败返回 False。
     """
-    url = base_url.rstrip("/") + "/chat/completions"
+    url = _build_api_url(base_url) + "/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -189,7 +213,7 @@ _multimodal_cache: dict[str, bool] = {}
 
 
 async def check_multimodal_cached(base_url: str, api_key: str, model_name: str) -> bool:
-    """带缓存的多模态探测"""
+    """带缓存的多模态探测（base_url 不用带 /v1）"""
     if model_name in _multimodal_cache:
         return _multimodal_cache[model_name]
     result = await check_multimodal(base_url, api_key, model_name)

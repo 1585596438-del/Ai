@@ -62,6 +62,8 @@ node_modules/
 
 # Electron
 out/
+frontend/release/
+frontend/resources/novel2script-backend.exe
 
 # 前端构建产物
 dist-frontend/

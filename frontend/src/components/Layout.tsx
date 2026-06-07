@@ -18,10 +18,17 @@ export function Layout(): JSX.Element {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#FFFDF7] to-[#F2E8D5] flex flex-col">
+    <div className="h-screen bg-gradient-to-b from-[#FFFDF7] to-[#F2E8D5] flex flex-col overflow-hidden">
       {/* 顶栏 */}
       <header className="h-12 shrink-0 border-b border-[#E8DCC8] flex items-center justify-between px-4 bg-gradient-to-r from-[#FFFDF7] to-[#F7EDDC]">
-        <div className="flex items-center gap-2">
+        <div
+          className="flex items-center gap-2 cursor-pointer select-none"
+          onClick={() =>
+            window.electronAPI?.openExternal('https://github.com/1585596438-del/Ai') ??
+            window.open('https://github.com/1585596438-del/Ai', '_blank')
+          }
+          title="GitHub 仓库"
+        >
           <img src="/brand/logo.png" alt="星幕" className="h-6 w-6" />
           <span className="font-bold text-sm">星幕 StarScript</span>
         </div>
