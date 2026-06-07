@@ -69,12 +69,15 @@ export function ConvertPage(): JSX.Element {
     }
     setSubmitting(true)
     try {
+      // 注意：与后端 Pydantic ConvertRequest 对齐，novel 字段必须嵌套
       const r = await submitConvert({
+        novel: {
+          text: novelInput.text,
+          title: novelInput.title || undefined,
+          author: novelInput.author || undefined,
+        },
         provider_id: providerId,
         model,
-        title: novelInput.title,
-        author: novelInput.author,
-        text: novelInput.text,
       })
       setCurrentTask(r.task_id, r.status)
       navigate(`/progress/${r.task_id}`)

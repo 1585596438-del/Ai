@@ -4,8 +4,19 @@
  */
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Provider, TaskStatus, NovelInput, ProviderCreate } from '@/types'
+import type { Provider, TaskStatus, ProviderCreate } from '@/types'
 import * as api from '@/api'
+
+/**
+ * 全局状态中的「小说输入」形状
+ * - 区别于 types/index.ts 中的 NovelInput（后者是与后端 Pydantic 对齐的传输类型）
+ * - 这里 title/author 用空字符串占位，避免组件中到处判 undefined
+ */
+export interface NovelInputState {
+  title: string
+  author: string
+  text: string
+}
 
 /** 单个 Provider 在内存中的运行时状态（包含仅前端用的 api_key 草稿） */
 export interface ProviderDraft {
@@ -29,8 +40,8 @@ interface AppState {
   clearTask: () => void
 
   /* 小说输入（持久化） */
-  novelInput: NovelInput
-  setNovelInput: (input: Partial<NovelInput>) => void
+  novelInput: NovelInputState
+  setNovelInput: (input: Partial<NovelInputState>) => void
   resetNovelInput: () => void
 
   /* 结果 YAML（仅当前任务） */
@@ -38,7 +49,7 @@ interface AppState {
   setCurrentYaml: (yaml: string) => void
 }
 
-const emptyNovel: NovelInput = { title: '', author: '', text: '' }
+const emptyNovel: NovelInputState = { title: '', author: '', text: '' }
 
 export const useAppStore = create<AppState>()(
   persist(
